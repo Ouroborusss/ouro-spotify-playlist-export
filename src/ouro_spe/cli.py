@@ -12,6 +12,7 @@ from ouro_spe.config import load_config
 from ouro_spe.export import export_run
 from ouro_spe.inventory import Inventory
 from ouro_spe.paths import resolve_paths
+from ouro_spe.setup_cmd import run_setup
 from ouro_spe.spotify import SpotifyClient
 
 
@@ -30,6 +31,17 @@ def main(argv: list[str] | None = None) -> None:
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p_setup = sub.add_parser(
+        "setup",
+        help="Interactive first-run: Client ID, Dashboard redirect, remote login tips",
+    )
+    _add_path_flags(p_setup)
+    p_setup.add_argument(
+        "--skip-login",
+        action="store_true",
+        help="Write config only; do not start OAuth",
+    )
 
     p_login = sub.add_parser("login", help="Authorize with Spotify (PKCE) and store tokens")
     _add_path_flags(p_login)
@@ -58,6 +70,10 @@ def main(argv: list[str] | None = None) -> None:
         packs_dir=getattr(args, "packs_dir", None),
     )
     paths.ensure()
+
+    if args.command == "setup":
+        run_setup(paths, skip_login=args.skip_login)
+        return
 
     if args.command == "login":
         cfg = load_config(paths.config_file)

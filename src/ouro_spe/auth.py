@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 import secrets
 import threading
 import time
@@ -189,6 +190,46 @@ def refresh_tokens(client: httpx.Client, cfg: AppConfig, tokens: TokenSet) -> To
     )
 
 
+def _normalize_redirect_text(text: str) -> str:
+    text = text.strip().strip("'\"")
+    if not text:
+        return text
+    if text.startswith("//"):
+        return "http:" + text
+    if re.match(r"^(?:127\.0\.0\.1|localhost):\d+", text, re.I):
+        return "http://" + text
+    if text.startswith(("callback?", "/callback?")):
+        return "http://127.0.0.1:4389/" + text.lstrip("/")
+    if text.startswith("code="):
+        return "http://127.0.0.1:4389/callback?" + text
+    return text
+
+
+def _code_from_redirect(text: str, expected_state: str) -> str:
+    text = _normalize_redirect_text(text)
+    parsed = urllib.parse.urlparse(text)
+    qs = urllib.parse.parse_qs(parsed.query)
+    if not qs.get("code") and "code=" in text:
+        # Last-resort: pull query from the final ? segment
+        qs = urllib.parse.parse_qs(text.rsplit("?", 1)[-1])
+    if qs.get("error"):
+        raise SystemExit(f"Login failed: {qs['error'][0]}")
+    state = (qs.get("state") or [""])[0]
+    if state != expected_state:
+        raise SystemExit(
+            "Login failed: state mismatch.\n"
+            "That usually means the URL is from an older login attempt.\n"
+            "Run login again, open the NEW authorize link, Accept, then paste that new URL."
+        )
+    code = (qs.get("code") or [None])[0]
+    if not code:
+        raise SystemExit(
+            "No authorization code in that URL.\n"
+            "Paste the full address bar value, including http:// and ?code=..."
+        )
+    return code
+
+
 def login(cfg: AppConfig, tokens_path: Path) -> TokenSet:
     verifier, challenge = _pkce_pair()
     state = secrets.token_urlsafe(24)
@@ -207,21 +248,60 @@ def login(cfg: AppConfig, tokens_path: Path) -> TokenSet:
 
     result = _OAuthResult()
     server = HTTPServer((host, port), _make_handler(state, path, result))
-    thread = threading.Thread(target=server.handle_request, daemon=True)
-    thread.start()
+    http_thread = threading.Thread(target=server.handle_request, daemon=True)
+    http_thread.start()
 
-    print(f"Opening browser for Spotify login…\n{auth_url}")
-    webbrowser.open(auth_url)
-    thread.join(timeout=300)
+    print(f"Open this URL in a browser on your local machine:\n\n{auth_url}\n")
+    print(
+        "Remote SSH tip: after Accept, the page may look blank. "
+        "Copy the FULL address-bar URL "
+        "(starts with http://127.0.0.1:4389/callback?code=...)\n"
+        "and paste it below. Or forward port 4389 so the callback hits this machine.\n"
+    )
+    try:
+        webbrowser.open(auth_url)
+    except Exception:
+        pass
+
+    pasted: list[str] = []
+
+    def _read_paste() -> None:
+        try:
+            line = input(
+                "Paste redirect URL here (or wait for port-forward callback): "
+            ).strip()
+            if line:
+                pasted.append(line)
+        except EOFError:
+            return
+
+    paste_thread = threading.Thread(target=_read_paste, daemon=True)
+    paste_thread.start()
+
+    deadline = time.time() + 300
+    code: str | None = None
+    while time.time() < deadline:
+        if result.error:
+            server.server_close()
+            raise SystemExit(f"Login failed: {result.error}")
+        if result.code:
+            code = result.code
+            break
+        if pasted:
+            try:
+                code = _code_from_redirect(pasted[0], state)
+            except SystemExit:
+                server.server_close()
+                raise
+            break
+        time.sleep(0.2)
+
     server.server_close()
-
-    if result.error:
-        raise SystemExit(f"Login failed: {result.error}")
-    if not result.code:
+    if not code:
         raise SystemExit("Login timed out or no authorization code received.")
 
     with httpx.Client(timeout=30.0) as client:
-        tokens = _exchange_code(client, cfg, result.code, verifier)
+        tokens = _exchange_code(client, cfg, code, verifier)
     save_tokens(tokens_path, tokens)
     return tokens
 
