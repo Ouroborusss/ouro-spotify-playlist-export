@@ -1,0 +1,7 @@
+# Copy to $XDG_CONFIG_HOME/ouro-spotify-playlist-export/config.toml
+# Use your own Spotify Developer Dashboard Client ID (PKCE public client).
+
+SPOTIFY_CLIENT_ID = "<CLIENT_ID>"
+
+# Optional — must match a Dashboard redirect URI (127.0.0.1, not localhost).
+# SPOTIFY_REDIRECT_URI = "http://127.0.0.1:4389/callback"

@@ -1,0 +1,30 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Secrets and local state (never commit)
+.env
+config.toml
+tokens.json
+*.sqlite
+*.sqlite3
+
+# Real portable packs — keep only synthetic examples/ committed
+packs/
+*.playlist.pack.json
+!examples/*.playlist.pack.json
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

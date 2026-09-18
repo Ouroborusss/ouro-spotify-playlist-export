@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "source": "spotify",
+  "pack_kind": "playlist",
+  "title": "Example Synthetic Playlist",
+  "exported_at": "2026-01-01T00:00:00+00:00",
+  "tracks": [
+    {
+      "position": 1,
+      "title": "Synthetic Track One",
+      "artists": ["Example Artist"],
+      "duration_ms": 180000,
+      "spotify_track_id": "0000000000000000000001",
+      "isrc": "XXHZZ0000001",
+      "album": "Example Album",
+      "disc_number": 1,
+      "track_number": 1
+    },
+    {
+      "position": 2,
+      "title": "Synthetic Track Two",
+      "artists": ["Example Artist", "Another Artist"],
+      "duration_ms": 210000,
+      "spotify_track_id": "0000000000000000000002",
+      "album": "Example Album",
+      "disc_number": 1,
+      "track_number": 2
+    }
+  ]
+}
